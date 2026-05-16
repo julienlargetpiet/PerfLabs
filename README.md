@@ -10,7 +10,7 @@ Just make a directory into the algorithm folder you want to contribute to with a
 
 #### Contrib1
 
-This one is a very good, rethinking the layout containing of each combinations as not values contiguous to allow one-shot replication of values that repeats itself in several contiguous combinations.
+This one is very good, rethinking the layout containing each combinations as not values contiguous to allow one-shot replication of values that repeats itself in several contiguous combinations.
 
 Great stuff !
 
