@@ -7,6 +7,7 @@
 #include <inttypes.h>
 #include <time.h>
 #include <string.h>
+#include <math.h>
 
 #define ARR_LEN(a) (sizeof(a) / sizeof((a)[0]))
 
@@ -24,7 +25,7 @@ typedef const bool U1;
 typedef struct Comb {
     const u64 *const *data;
     u64 *strides;
-    u64 tot_dim;
+    u64 stride_len;
 } Comb;
 
 void create_comb(Comb *comb,
@@ -33,18 +34,23 @@ void create_comb(Comb *comb,
                  const u64 *len_arr)
 {
     comb->data = data;
-    comb->tot_dim = tot_dim;
+    comb->stride_len = tot_dim - 1;
 
-    comb->strides = malloc(sizeof(u64) * tot_dim);
-    if (comb->strides == NULL) {
-        fprintf(stderr, "Allocation failed.\n");
-        abort();
+    comb->strides = NULL;
+    
+    if (comb->stride_len > 0) {
+        comb->strides = malloc(sizeof(u64) * comb->stride_len);
+        if (comb->strides == NULL) {
+            fprintf(stderr, "Allocation failed.\n");
+            abort();
+        }
     }
 
-    comb->strides[0] = 1;
+    u64 cur_comb = 1;
 
-    for (u64 i = 1; i < tot_dim; i++) {
-        comb->strides[i] = comb->strides[i - 1] * len_arr[i - 1];
+    for (u64 i = 0; i < comb->stride_len; i++) {
+        cur_comb *= len_arr[i];
+        comb->strides[i] = cur_comb;
     }
 }
 
@@ -53,26 +59,29 @@ void destroy_comb(Comb *comb)
     free(comb->strides);
     comb->strides = NULL;
     comb->data = NULL;
-    comb->tot_dim = 0;
+    comb->stride_len = 0;
 }
 
-void get_comb(const Comb *comb,
-              u64 *cur_comb,
+void get_comb(const Comb *restrict comb,
+              u64 *restrict cur_comb,
               U64 comb_value)
 {
-    const u64 *const *data = comb->data;
-    const u64 *strides = comb->strides;
+    U64 *const *restrict data = comb->data;
+    U64 *restrict strides = comb->strides;
 
     u64 rem = comb_value;
 
-    for (u64 i = comb->tot_dim; i-- > 0;) {
-        U64 stride = strides[i];
+    for (u64 i = comb->stride_len; i > 0; --i) {
+        U64 stride = strides[i - 1];
         U64 idx = rem / stride;
 
         cur_comb[i] = data[i][idx];
 
         rem -= idx * stride;
     }
+
+    cur_comb[0] = data[0][rem];
+
 }
 
 static uint64_t now_ns(void)
@@ -121,11 +130,11 @@ int main(void)
             abort();
         }
 
-        //get_comb(&comb_obj, cur_comb_array, 133);
-
-        //for (u64 i = 0; i < arr_nbr; i++) {
-        //    sum += cur_comb_array[i];
-        //}
+        for (size_t i = 0; i < (U64)pow(5, 4); ++i) {
+            get_comb(&comb_obj, cur_comb_array, i);
+            sum += cur_comb_array[0];
+            sum += cur_comb_array[arr_nbr - 1];
+        }
 
         free(cur_comb_array);
         destroy_comb(&comb_obj);

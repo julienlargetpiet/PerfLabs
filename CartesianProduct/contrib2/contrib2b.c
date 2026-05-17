@@ -43,9 +43,45 @@ static inline void memrep(void *src,
     }
 }
 
-/*
- * Return the current time.
- */
+static inline u1 u64_is_repeated_byte(u64 x)
+{
+    return x == ((x & 0xffu) * 0x0101010101010101ull);
+}
+
+static inline void fill_u64(u64 *dst, U64 value, U64 count)
+{
+    if (count == 0) {
+        return;
+    }
+
+    if (u64_is_repeated_byte(value)) {
+        memset(dst, (int)(value & 0xffu), count * sizeof(u64));
+        return;
+    }
+
+    if (count <= 64) {
+        for (u64 i = 0; i < count; i++) {
+            dst[i] = value;
+        }
+        return;
+    }
+
+    dst[0] = value;
+
+    u64 done = 1;
+
+    while (done < count) {
+        u64 rem = count - done;
+        u64 cpy = done < rem ? done : rem;
+
+        memcpy(dst + done,
+               dst,
+               cpy * sizeof(u64));
+
+        done += cpy;
+    }
+}
+
 static uint64_t now_ns(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
@@ -53,6 +89,10 @@ static uint64_t now_ns(void) {
 }
 
 int main(void) {
+
+    // Warning - To maximize what is copied over memcpy, if we have lists with diferent dimensions
+    // we ask to sort the input lists from largest to smallest
+
     u64 tim_stt = now_ns();
 
         /* Test data. */
@@ -84,7 +124,12 @@ int main(void) {
     for (volatile u64 itr_idx = 0; itr_idx < itr_nbr; itr_idx++) {
 
         U64 dst_nbr = combination_nbr * arr_nbr; // combinaisons possibles * taile de chaque combinaison
-        u64 *dst_elms = malloc(sizeof(u64) * dst_nbr);
+        //u64 *dst_elms = malloc(sizeof(u64) * dst_nbr);
+
+        u64 *dst_elms;
+        if (posix_memalign((void **)&dst_elms, 64, sizeof(u64) * dst_nbr) != 0) {
+            abort();
+        }
 
         u64 elm_dup_nbr = 1;
         u64 seq_dup_nbr = combination_nbr;
@@ -99,17 +144,15 @@ int main(void) {
             u64 *stt = seq_start;
         
             const u64 *cur_data = data[arr_idx];
-        
+       
             for (u64 elem_idx = 0; elem_idx < len; elem_idx++) {
                 U64 cur_value = cur_data[elem_idx];
-        
-                for (u64 i = 0; i < elm_dup_nbr; i++) {
-                    stt[i] = cur_value;
-                }
+
+                fill_u64(stt, cur_value, elm_dup_nbr);
         
                 stt += elm_dup_nbr;
             }
-        
+
             u64 sequence_len = elm_dup_nbr * len;
         
             memrep(seq_start, 
@@ -118,7 +161,7 @@ int main(void) {
         
             elm_dup_nbr = sequence_len;
         }
-        
+
         sum += dst_elms[0];
         sum += dst_elms[dst_nbr - 1];
 
@@ -147,3 +190,5 @@ int main(void) {
 
     return 0;
 }
+
+
